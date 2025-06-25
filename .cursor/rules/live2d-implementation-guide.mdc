@@ -1,5 +1,173 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# Live2D桌面宠物实现指南
+
+## 项目概述
+这是一个基于Tauri + React + TypeScript的桌面应用，成功集成了Live2D CubismSDK实现桌面宠物功能。
+
+## 核心技术栈
+- **前端框架**: React 18 + TypeScript + Vite
+- **桌面应用**: Tauri
+- **Live2D**: CubismSDK for Web 5.r.4
+- **图形渲染**: WebGL
+- **样式**: CSS Modules
+
+## 项目结构
+
+### Live2D核心文件
+- [src/live2d-framework/](mdc:src/live2d-framework) - Live2D Framework源码
+- [src/live2d/LAppDelegate.ts](mdc:src/live2d/LAppDelegate.ts) - 应用程序委托类，管理整个Live2D应用生命周期
+- [src/live2d/LAppModel.ts](mdc:src/live2d/LAppModel.ts) - 模型管理类，处理模型加载、更新、绘制
+- [src/live2d/LAppGlManager.ts](mdc:src/live2d/LAppGlManager.ts) - WebGL上下文管理器
+- [src/live2d/LAppSubdelegate.ts](mdc:src/live2d/LAppSubdelegate.ts) - 子委托类，管理WebGL和纹理
+- [src/live2d/LAppTextureManager.ts](mdc:src/live2d/LAppTextureManager.ts) - 纹理管理器
+- [src/live2d/LAppPal.ts](mdc:src/live2d/LAppPal.ts) - 平台抽象层
+- [src/live2d/LAppDefine.ts](mdc:src/live2d/LAppDefine.ts) - 配置定义文件
+
+### React组件
+- [src/components/Live2DViewer.tsx](mdc:src/components/Live2DViewer.tsx) - Live2D展示组件，集成定时提醒功能
+- [src/components/SimpleLive2DDemo.tsx](mdc:src/components/SimpleLive2DDemo.tsx) - 简化版Live2D组件(备选方案)
+- [src/components/ErrorBoundary.tsx](mdc:src/components/ErrorBoundary.tsx) - 错误边界组件
+- [src/pages/MainPage.tsx](mdc:src/pages/MainPage.tsx) - 主页面，包含模式切换功能
+
+### 模型资源
+- [src/models/Mimi_Dog/](mdc:src/models/Mimi_Dog) - Mimi_Dog模型资源
+- [src/models/Mimi_Dog/dog.model3.json](mdc:src/models/Mimi_Dog/dog.model3.json) - 模型配置文件
+
+## 核心功能实现
+
+### 1. Live2D模型展示
+```typescript
+// 初始化Live2D委托
+const delegate = LAppDelegate.getInstance();
+await delegate.initialize(canvas);
+delegate.startRenderLoop();
+
+// 模型加载流程
+model.loadAssets(modelPath, 'dog.model3.json');
+// -> 自动处理模型文件、纹理、表情、动作、物理演算等加载
+```
+
+### 2. 定时提醒系统
+- **提醒间隔**: 30分钟 (可在 [src/live2d/LAppDefine.ts](mdc:src/live2d/LAppDefine.ts) 配置)
+- **提醒消息**: 8种健康提醒 (可自定义)
+- **显示方式**: 气泡消息，3秒后自动消失
+
+### 3. 交互功能
+- **鼠标跟随**: 模型眼球和头部跟随鼠标移动
+- **点击互动**: 触发表情和动作
+- **拖拽控制**: 调整模型朝向
+
+### 4. 双模式支持
+- **完整Live2D模式**: 使用WebGL渲染真实Live2D模型
+- **简化模式**: CSS动画备选方案，适用于WebGL不可用时
+
+## 技术要点
+
+### WebGL上下文管理
+```typescript
+// LAppGlManager 负责WebGL生命周期
+const glManager = LAppGlManager.getInstance();
+glManager.initialize(canvas);
+const gl = glManager.getGl(); // 获取WebGL上下文
+```
+
+### 纹理加载
+```typescript
+// 异步纹理加载，支持缓存和预乘alpha
+textureManager.createTextureFromPngFile(
+  texturePath, 
+  usePremultiply, 
+  callback
+);
+```
+
+### 渲染循环
+```typescript
+// 60FPS渲染循环
+function run() {
+  LAppPal.updateTime(); // 更新时间
+  model.update();       // 更新模型状态
+  model.draw(matrix);   // 绘制模型
+  requestAnimationFrame(run);
+}
+```
+
+## 错误处理与优化
+
+### 错误边界
+- React ErrorBoundary捕获Live2D加载失败
+- 自动降级到简化模式
+- 友好的错误提示和故障排除指导
+
+### 性能优化
+- 纹理缓存机制
+- 帧率控制 (60FPS)
+- 资源自动释放
+- WebGL上下文丢失处理
+
+### 内存管理
+```typescript
+// 正确的资源释放顺序
+model.release();
+subdelegate.release();
+CubismFramework.dispose();
+```
+
+## 配置说明
+
+### 模型配置 ([src/live2d/LAppDefine.ts](mdc:src/live2d/LAppDefine.ts))
+```typescript
+export const ModelDir: string[] = ['Mimi_Dog']; // 模型目录
+export const ReminderInterval = 30 * 60 * 1000; // 提醒间隔
+export const ReminderMessages = [...]; // 提醒消息列表
+```
+
+### 视图配置
+```typescript
+export const ViewScale = 1.0;        // 视图缩放
+export const ViewMaxScale = 2.0;     // 最大缩放
+export const ViewMinScale = 0.8;     // 最小缩放
+```
+
+## 开发调试
+
+### 日志配置
+```typescript
+export const DebugLogEnable = true; // 启用调试日志
+export const CubismLoggingLevel = LogLevel.LogLevel_Verbose;
+```
+
+### 常见问题
+1. **WebGL上下文丢失**: 检查WebGL支持和资源释放
+2. **纹理加载失败**: 确认图片路径和跨域设置
+3. **模型不显示**: 检查model3.json配置和文件路径
+4. **内存泄漏**: 确保正确调用release()方法
+
+## 扩展功能
+
+### 添加新模型
+1. 将模型文件放入 `src/models/[ModelName]/`
+2. 更新 [src/live2d/LAppDefine.ts](mdc:src/live2d/LAppDefine.ts) 中的 `ModelDir`
+3. 修改 [src/live2d/LAppDelegate.ts](mdc:src/live2d/LAppDelegate.ts) 中的加载路径
+
+### 自定义提醒
+在 [src/live2d/LAppDefine.ts](mdc:src/live2d/LAppDefine.ts) 中修改:
+```typescript
+export const ReminderMessages = [
+  "你的自定义消息1",
+  "你的自定义消息2",
+  // ...
+];
+```
+
+## 部署说明
+- 开发环境: `npm run tauri dev`
+- 生产构建: `npm run tauri build`
+- 访问地址: http://localhost:1420
+
+这个实现成功将Live2D CubismSDK集成到Tauri桌面应用中，提供了完整的2D虚拟角色展示和交互功能。
+
