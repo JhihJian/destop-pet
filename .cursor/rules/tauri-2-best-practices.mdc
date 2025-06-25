@@ -1,0 +1,239 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Tauri 2.0 开发最佳实践规则
+
+## 项目结构和配置
+
+### 依赖版本管理
+当前项目使用的正确Tauri 2.0版本：
+- `@tauri-apps/api`: ^2.5.0
+- `@tauri-apps/cli`: ^2.5.0  
+- `@tauri-apps/plugin-fs`: ^2.2.1
+- `tauri`: 2.5.0 (Rust后端)
+- `tauri-build`: 2.2.0 (构建依赖)
+
+**重要**: 绝对不要混用Tauri 1.0的版本号或API
+
+### 配置文件结构
+参考 [tauri.conf.json](mdc:pure-mind-note/src-tauri/tauri.conf.json) 的正确格式：
+```json
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "应用名称",
+  "version": "0.1.0", 
+  "identifier": "com.公司.应用名",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [...],
+    "security": { "csp": null }
+  }
+}
+```
+
+## Rust后端开发规范
+
+### Cargo.toml配置
+参考 [Cargo.toml](mdc:pure-mind-note/src-tauri/Cargo.toml) 的正确依赖配置：
+```toml
+[dependencies]
+tauri = { version = "2.5.0", features = [] }
+tauri-plugin-log = "2.0.0-rc"
+tauri-plugin-fs = "2.2.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[build-dependencies]
+tauri-build = { version = "2.2.0", features = [] }
+```
+
+### 应用启动代码
+参考 [lib.rs](mdc:pure-mind-note/src-tauri/src/lib.rs) 的正确模式：
+```rust
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+  tauri::Builder::default()
+    .setup(|app| {
+      // 日志插件注册
+      if cfg!(debug_assertions) {
+        app.handle().plugin(
+          tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Info)
+            .build(),
+        )?;
+      }
+      // 文件系统插件注册
+      app.handle().plugin(tauri_plugin_fs::init())?;
+      Ok(())
+    })
+    .invoke_handler(tauri::generate_handler![
+      // 命令列表
+    ])
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
+}
+```
+
+### 命令定义规范
+参考 [commands.rs](mdc:pure-mind-note/src-tauri/src/commands.rs) 的正确模式：
+```rust
+#[tauri::command]
+pub fn command_name(param: String) -> Result<ReturnType, String> {
+    // 实现逻辑
+    Ok(result)
+}
+```
+
+**关键点**: 
+- 使用 `#[tauri::command]` 宏
+- 返回 `Result<T, String>` 类型
+- 错误处理使用字符串消息
+
+## 前端开发规范
+
+### API导入方式
+参考 [FileService.ts](mdc:pure-mind-note/src/services/FileService.ts) 的正确导入：
+```typescript
+// ✅ Tauri 2.0 正确导入
+import { invoke } from '@tauri-apps/api/core';
+import { appDataDir, normalize } from '@tauri-apps/api/path';
+import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+
+// ❌ 错误：不要使用Tauri 1.0的导入
+// import { invoke } from '@tauri-apps/api/tauri';
+// import { readTextFile } from '@tauri-apps/api/fs';
+```
+
+### 命令调用模式
+```typescript
+// ✅ 正确的命令调用方式
+const result = await invoke('command_name', { param1: value1, param2: value2 });
+
+// ✅ 正确的错误处理
+try {
+  const result = await invoke('command_name', { param });
+  return result;
+} catch (error) {
+  console.error('命令执行失败:', error);
+  throw new Error(`操作失败: ${error}`);
+}
+```
+
+### 文件系统操作
+参考 [ConfigService.ts](mdc:pure-mind-note/src/services/ConfigService.ts) 的正确模式：
+```typescript
+import { BaseDirectory, exists, readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
+
+// ✅ 正确的文件操作
+const fileExists = await exists(filePath);
+const content = await readTextFile(filePath);
+await writeTextFile(filePath, content);
+await mkdir(dirPath, { recursive: true });
+```
+
+### 路径处理
+```typescript
+import { appDataDir, join, normalize } from '@tauri-apps/api/path';
+
+// ✅ 正确的路径处理
+const appDir = await appDataDir();
+const fullPath = await join(appDir, 'subfolder', 'file.txt');
+const normalizedPath = await normalize(path);
+```
+
+## 常见错误避免
+
+### 1. 不要混用版本API
+```typescript
+// ❌ 错误：Tauri 1.0 API
+import { invoke } from '@tauri-apps/api/tauri';
+import { readTextFile } from '@tauri-apps/api/fs';
+
+// ✅ 正确：Tauri 2.0 API  
+import { invoke } from '@tauri-apps/api/core';
+import { readTextFile } from '@tauri-apps/plugin-fs';
+```
+
+### 2. 插件使用方式
+```rust
+// ❌ 错误：Tauri 1.0 插件注册
+.plugin(tauri_plugin_fs::init())
+
+// ✅ 正确：Tauri 2.0 插件注册
+app.handle().plugin(tauri_plugin_fs::init())?;
+```
+
+### 3. 配置文件结构
+```json
+// ❌ 错误：Tauri 1.0 配置结构
+{
+  "build": {
+    "distDir": "../dist"
+  },
+  "tauri": {
+    "windows": [...] 
+  }
+}
+
+// ✅ 正确：Tauri 2.0 配置结构
+{
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [...]
+  }
+}
+```
+
+## 项目初始化命令
+
+```bash
+# 创建新的Tauri 2.0项目
+npm create tauri-app@latest
+
+# 开发模式启动
+npm run tauri:dev
+
+# 构建应用
+npm run tauri:build
+```
+
+## 调试和日志
+
+参考当前项目的日志配置模式：
+```rust
+// Rust后端日志
+if cfg!(debug_assertions) {
+  app.handle().plugin(
+    tauri_plugin_log::Builder::default()
+      .level(log::LevelFilter::Info)
+      .build(),
+  )?;
+}
+```
+
+```typescript
+// 前端日志
+console.log('[前端] 操作信息');
+console.error('[前端] 错误信息');
+```
+
+## 总结要点
+
+1. **版本一致性**: 确保所有Tauri相关依赖都使用2.x版本
+2. **API导入**: 从 `@tauri-apps/api/core` 导入invoke，从插件包导入文件系统API
+3. **插件注册**: 在setup函数中使用 `app.handle().plugin()` 方式
+4. **命令定义**: 使用 `#[tauri::command]` 宏和 `Result<T, String>` 返回类型
+5. **配置结构**: 使用新的配置文件结构（`app` 而非 `tauri` 键）
+6. **错误处理**: 统一使用字符串错误消息和try-catch模式
+
+**记住**: 当看到任何Tauri 1.0的代码模式时，立即参考本项目的正确实现进行修正！
+
