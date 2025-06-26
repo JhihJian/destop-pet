@@ -1,0 +1,167 @@
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.dialog-box {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 450px;
+  text-align: center;
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(-50px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.dialog-message {
+  font-size: 1.25em;
+  color: #333;
+  margin: 0 0 25px 0;
+  line-height: 1.6;
+}
+
+.dialog-options {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.dialog-button {
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.dialog-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dialog-button:first-child {
+  background-color: #4a90e2;
+  color: white;
+}
+
+/* 这是一个局部的对话框，使用 absolute 定位，将显示在父容器内 */
+.dialog-overlay-local {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* 不再需要背景遮罩 */
+}
+
+/* 模仿 .bubble 样式的对话框主体 */
+.dialog-box-local {
+  background-color: white;
+  padding: 25px 35px;
+  border-radius: 20px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 480px;
+  text-align: center;
+  animation: fade-in-scale-up 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+@keyframes fade-in-scale-up {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.dialog-message-local {
+  font-size: 1.1em;
+  color: #333;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.dialog-input-local {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1em;
+  margin-bottom: 20px;
+  box-sizing: border-box; /* 确保 padding 不会撑大宽度 */
+}
+
+.dialog-input-local:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.dialog-options-local {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap; /* 选项多时可换行 */
+}
+
+.dialog-button-local {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.95em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #f9f9f9;
+  color: #555;
+}
+
+.dialog-button-local:hover {
+  transform: translateY(-1px);
+  background-color: #fff;
+  border-color: #aaa;
+}
+
+/* 主操作按钮的样式 */
+.dialog-button-local.primary {
+  background-color: #4a90e2;
+  color: white;
+  border-color: #4a90e2;
+}
+
+.dialog-button-local.primary:hover {
+  background-color: #3a82d2;
+  border-color: #3a82d2;
+} 

@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Live2D Desktop Pet",
-        "width": 200,
-        "height": 300,
+        "width": 400,
+        "height": 600,
         "decorations": false,
         "shadow": false,
         "transparent": true,

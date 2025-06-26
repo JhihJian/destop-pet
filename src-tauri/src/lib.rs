@@ -11,6 +11,18 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use uuid::Uuid;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tauri::Listener; // <--- 关键改动 1
+
+mod api_server;
+
+// 定义从前端返回的事件负载
+#[derive(serde::Deserialize)]
+struct UserInputResponsePayload {
+    correlation_id: String,
+    response: String,
+}
 
 // 从密码生成密钥
 fn derive_key(password: &str) -> Key<Aes256Gcm> {
@@ -302,13 +314,38 @@ async fn delete_diary(_app_handle: tauri::AppHandle, _password: String, _id: Str
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 创建用于在后端和前端之间传递回调的共享状态
+    let waiting_requests: api_server::WaitingRequests = Arc::new(Mutex::new(HashMap::new()));
+    
+    // 克隆一份给 setup 闭包使用
+    let waiting_requests_clone = waiting_requests.clone();
+
     tauri::Builder::default()
-        .setup(|_app| {
+        .setup(move |app| {
+            // 启动我们的 API 服务器，并传递共享状态
+            api_server::start_server(app.handle().clone(), waiting_requests.clone());
+
+            // 设置事件监听器，用于接收前端返回的用户输入
+            app.listen("user_input_response", move |event| {
+                // <--- 关键改动 2
+                let payload_str = event.payload();
+                if let Ok(payload) = serde_json::from_str::<UserInputResponsePayload>(payload_str) {
+                    let mut waiting = waiting_requests_clone.lock().unwrap();
+                    if let Some(tx) = waiting.remove(&payload.correlation_id) {
+                        if let Err(e) = tx.send(payload.response) {
+                            eprintln!("Failed to send response: {}", e);
+                        }
+                    }
+                } else {
+                     eprintln!("Failed to deserialize user input response payload: {}", payload_str);
+                }
+            });
+
             #[cfg(mobile)]
             {
-                _app.handle().plugin(tauri_plugin_fs::init())?;
-                _app.handle().plugin(tauri_plugin_dialog::init())?;
-                _app.handle().plugin(tauri_plugin_opener::init())?;
+                app.handle().plugin(tauri_plugin_fs::init())?;
+                app.handle().plugin(tauri_plugin_dialog::init())?;
+                app.handle().plugin(tauri_plugin_opener::init())?;
             }
             Ok(())
         })
