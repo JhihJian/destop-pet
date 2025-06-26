@@ -28,7 +28,7 @@ const MainPage: React.FC = () => {
             onClick={() => setUseSimpleMode(!useSimpleMode)}
           >
             {useSimpleMode ? '🎮 简化模式' : '⚡ 完整模式'}
-          </button>
+        </button>
           <div className={styles.statusIndicator}>
             <div className={styles.statusDot}></div>
             <span>在线</span>

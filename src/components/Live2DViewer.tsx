@@ -100,8 +100,24 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
     }
   };
 
+  // 检查点击位置是否在模型上（更精确的区域检测）
+  const isClickOnModel = (x: number, y: number, canvasWidth: number, canvasHeight: number): boolean => {
+    // 更精确的模型区域检测 - 减小检测区域，避免误触
+    const modelCenterX = canvasWidth / 2;
+    const modelCenterY = canvasHeight * 0.55; // 模型稍微偏下
+    const modelWidth = canvasWidth * 0.35; // 减小到35%宽度，更精确
+    const modelHeight = canvasHeight * 0.5; // 减小到50%高度
+    
+    const left = modelCenterX - modelWidth / 2;
+    const right = modelCenterX + modelWidth / 2;
+    const top = modelCenterY - modelHeight / 2;
+    const bottom = modelCenterY + modelHeight / 2;
+    
+    return x >= left && x <= right && y >= top && y <= bottom;
+  };
+
   // 处理画布点击事件
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
     if (isDragging) {
       setIsDragging(false);
       return;
@@ -113,6 +129,12 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
+    // 检查是否点击在模型区域
+    if (!isClickOnModel(x, y, canvasRef.current.width, canvasRef.current.height)) {
+      // 如果不在模型区域，让事件穿透
+      return;
+    }
+
     console.log(`Canvas clicked at: ${x}, ${y}`);
     delegateRef.current.onTap(x, y);
 
@@ -123,7 +145,7 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
   };
 
   // 处理右键菜单
-  const handleContextMenu = (event: React.MouseEvent) => {
+  const handleContextMenu = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
     event.preventDefault();
     setContextMenuPos({ x: event.clientX, y: event.clientY });
     setShowContextMenu(true);
@@ -135,29 +157,45 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
   };
 
   // 处理鼠标按下事件
-  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
+    if (!canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    // 检查是否在模型区域
+    if (!isClickOnModel(x, y, canvasRef.current.width, canvasRef.current.height)) {
+      return;
+    }
+    
     setIsMouseDown(true);
     hideContextMenu();
     
     // 如果按下的是左键且在模型上部区域，启动拖拽
-    if (event.button === 0 && event.clientY < 100) {
+    if (event.button === 0 && y < 100) {
       handleDragStart(event);
     }
   };
 
   // 处理鼠标抬起事件
-  const handleMouseUp = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseUp = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
     setIsMouseDown(false);
     setIsDragging(false);
   };
 
   // 处理鼠标移动事件
-  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
     if (!delegateRef.current || !canvasRef.current || isDragging) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+
+    // 检查是否在模型区域
+    if (!isClickOnModel(x, y, canvasRef.current.width, canvasRef.current.height)) {
+      return;
+    }
 
     // 只有在鼠标按下时才进行拖拽，否则只是跟随
     if (isMouseDown) {
@@ -179,8 +217,17 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
   };
 
   // 处理双击事件
-  const handleDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!delegateRef.current) return;
+  const handleDoubleClick = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
+    if (!delegateRef.current || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    // 检查是否在模型区域
+    if (!isClickOnModel(x, y, canvasRef.current.width, canvasRef.current.height)) {
+      return;
+    }
 
     console.log('Double clicked Live2D model');
     
@@ -246,8 +293,8 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
         style={{
           position: 'absolute',
           top: 0,
-          left: 0,
-          right: 0,
+          left: '20%',
+          right: '20%',
           height: '80px',
           background: isDragging ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
           cursor: 'move',
@@ -257,7 +304,8 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
           justifyContent: 'center',
           fontSize: '12px',
           color: isDragging ? '#fff' : 'transparent',
-          transition: 'all 0.2s ease'
+          transition: 'all 0.2s ease',
+          pointerEvents: 'all' // 拖拽区域可以交互
         }}
         onMouseDown={handleDragStart}
       >
@@ -269,6 +317,28 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
         ref={canvasRef}
         width={400}
         height={500}
+        style={{
+          width: '100%',
+          height: '100%',
+          background: 'transparent',
+          display: 'block',
+          opacity: 1,
+          pointerEvents: 'none' // Canvas本身不响应鼠标事件
+        }}
+      />
+      
+      {/* 透明覆盖层用于处理鼠标事件 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'transparent',
+          pointerEvents: 'none', // 默认穿透
+          zIndex: 5
+        }}
         onClick={handleCanvasClick}
         onDoubleClick={handleDoubleClick}
         onMouseDown={handleMouseDown}
@@ -276,15 +346,22 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
         onMouseMove={handleCanvasMouseMove}
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
-        style={{
-          width: '100%',
-          height: '100%',
-          background: 'transparent',
-          cursor: isDragging ? 'grabbing' : (isMouseDown ? 'grabbing' : 'pointer'),
-          display: 'block',
-          opacity: 1
-        }}
-      />
+      >
+        {/* 模型交互区域 */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '32.5%', // (100% - 35%) / 2
+            top: '30%',   // 55% - 25%
+            width: '35%',
+            height: '50%',
+            background: process.env.NODE_ENV === 'development' ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
+            pointerEvents: 'all', // 只有这个区域响应鼠标事件
+            cursor: isDragging ? 'grabbing' : (isMouseDown ? 'grabbing' : 'pointer'),
+            borderRadius: '50%' // 椭圆形区域更自然
+          }}
+        />
+      </div>
       
       {/* 加载状态 */}
       {!isLoaded && (

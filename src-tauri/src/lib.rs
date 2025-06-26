@@ -1,5 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use tauri::{command, AppHandle, State, Manager};
+use tauri::{command, AppHandle};
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -273,36 +273,60 @@ async fn write_diary(
     Ok(())
 }
 
+#[tauri::command]
+async fn read_diary(
+    app_handle: tauri::AppHandle,
+    password: String,
+    id: String,
+) -> Result<String, String> {
+    // ... function body
+    Ok("".to_string())
+}
+
+#[tauri::command]
+async fn update_diary(
+    app_handle: tauri::AppHandle,
+    password: String,
+    id: String,
+    new_content: String,
+) -> Result<(), String> {
+    // ... function body
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_diary(app_handle: tauri::AppHandle, password: String, id: String) -> Result<(), String> {
+    // ... function body
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            #[cfg(desktop)]
+            #[cfg(mobile)]
             {
-                let window = app.get_webview_window("main").unwrap();
-                window.set_effects(None);
+                app.handle().plugin(tauri_plugin_fs::init())?;
+                app.handle().plugin(tauri_plugin_dialog::init())?;
+                app.handle().plugin(tauri_plugin_opener::init())?;
             }
-            app.handle().plugin(tauri_plugin_fs::init())?;
-            app.handle().plugin(tauri_plugin_dialog::init())?;
-            app.handle().plugin(tauri_plugin_opener::init())?;
-            // 例如：注册日志插件（可选）
-            // if cfg!(debug_assertions) {
-            //     app.handle().plugin(
-            //         tauri_plugin_log::Builder::default()
-            //             .level(log::LevelFilter::Info)
-            //             .build(),
-            //     )?;
-            // }
             Ok(())
         })
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             greet,
-            load_diary,
             save_diary,
+            load_diary,
             export_diary,
             import_diary,
             write_diary,
-            import_diary
+            read_diary,
+            update_diary,
+            delete_diary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

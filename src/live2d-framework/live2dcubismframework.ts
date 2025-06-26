@@ -193,14 +193,14 @@ export class CubismFramework {
     Value.staticReleaseNotForClientCall();
 
     if (s_cubismIdManager) {
-      s_cubismIdManager.release();
-      s_cubismIdManager = null;
+    s_cubismIdManager.release();
+    s_cubismIdManager = null;
     }
 
     // レンダラの静的リソース（シェーダプログラム他）を解放する
     try {
       if (CubismRenderer && typeof CubismRenderer.staticRelease === 'function') {
-        CubismRenderer.staticRelease();
+    CubismRenderer.staticRelease();
       }
     } catch (error) {
       console.warn('CubismRenderer.staticRelease() failed:', error);
