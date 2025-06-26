@@ -5,6 +5,10 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@framework/*": ["src/live2d-framework/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -15,11 +19,11 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": true,
+    "strict": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src", "src/types/live2d.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

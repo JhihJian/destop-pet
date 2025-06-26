@@ -4,8 +4,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { LAppDelegate } from '../live2d/LAppDelegate';
-import * as LAppDefine from '../live2d/LAppDefine';
+import { LAppDelegate } from '../lapp/lappdelegate';
+import * as LAppDefine from '../lapp/lappdefine';
 
 interface Live2DViewerProps {
   onMessage?: (message: string) => void;
@@ -90,7 +90,7 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
   }, [onMessage]);
 
   // 处理拖拽开始
-  const handleDragStart = async (event: React.MouseEvent) => {
+  const handleDragStart = async (_event: React.MouseEvent) => {
     setIsDragging(true);
     try {
       const window = getCurrentWindow();
@@ -179,7 +179,10 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
   };
 
   // 处理鼠标抬起事件
-  const handleMouseUp = (event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
+  const handleMouseUp = (_event: React.MouseEvent<HTMLCanvasElement | HTMLDivElement>) => {
+    if (isDragging) {
+      delegateRef.current?.onDrag(0, 0);
+    }
     setIsMouseDown(false);
     setIsDragging(false);
   };
@@ -384,11 +387,7 @@ const Live2DViewer: React.FC<Live2DViewerProps> = ({ onMessage }) => {
 
       {/* 消息提醒气泡 */}
       {showMessage && (
-        <div className="desktop-message-bubble" style={{
-          top: '60px',
-          left: '50%',
-          transform: 'translateX(-50%)'
-        }}>
+        <div className="desktop-message-bubble">
           {currentMessage}
           <div style={{
             position: 'absolute',

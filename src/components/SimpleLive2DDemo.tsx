@@ -4,7 +4,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import * as LAppDefine from '../live2d/LAppDefine';
+import { LAppDelegate } from '../lapp/lappdelegate';
+import * as LAppDefine from '../lapp/lappdefine';
 
 interface SimpleLive2DDemoProps {
   onMessage?: (message: string) => void;
@@ -15,6 +16,7 @@ const SimpleLive2DDemo: React.FC<SimpleLive2DDemoProps> = ({ onMessage }) => {
   const [showMessage, setShowMessage] = useState(false);
   const [isWaving, setIsWaving] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // 定时提醒功能
   useEffect(() => {

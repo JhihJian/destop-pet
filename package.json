@@ -5,9 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:sidecar": "tsc -p tsconfig.sidecar.json",
-    "start:websocket": "node dist/mcp-server/index.js",
-    "build": "tsc && vite build && npm run build:sidecar",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },

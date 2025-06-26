@@ -275,9 +275,9 @@ async fn write_diary(
 
 #[tauri::command]
 async fn read_diary(
-    app_handle: tauri::AppHandle,
-    password: String,
-    id: String,
+    _app_handle: tauri::AppHandle,
+    _password: String,
+    _id: String,
 ) -> Result<String, String> {
     // ... function body
     Ok("".to_string())
@@ -285,17 +285,17 @@ async fn read_diary(
 
 #[tauri::command]
 async fn update_diary(
-    app_handle: tauri::AppHandle,
-    password: String,
-    id: String,
-    new_content: String,
+    _app_handle: tauri::AppHandle,
+    _password: String,
+    _id: String,
+    _new_content: String,
 ) -> Result<(), String> {
     // ... function body
     Ok(())
 }
 
 #[tauri::command]
-async fn delete_diary(app_handle: tauri::AppHandle, password: String, id: String) -> Result<(), String> {
+async fn delete_diary(_app_handle: tauri::AppHandle, _password: String, _id: String) -> Result<(), String> {
     // ... function body
     Ok(())
 }
@@ -303,12 +303,12 @@ async fn delete_diary(app_handle: tauri::AppHandle, password: String, id: String
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(mobile)]
             {
-                app.handle().plugin(tauri_plugin_fs::init())?;
-                app.handle().plugin(tauri_plugin_dialog::init())?;
-                app.handle().plugin(tauri_plugin_opener::init())?;
+                _app.handle().plugin(tauri_plugin_fs::init())?;
+                _app.handle().plugin(tauri_plugin_dialog::init())?;
+                _app.handle().plugin(tauri_plugin_opener::init())?;
             }
             Ok(())
         })

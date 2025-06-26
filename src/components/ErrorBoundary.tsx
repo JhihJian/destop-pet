@@ -3,7 +3,7 @@
  * 用于捕获和处理Live2D相关的错误
  */
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;

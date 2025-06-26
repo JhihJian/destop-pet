@@ -1,10 +1,9 @@
 .container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  width: 100vw;
+  height: 100vh;
+  background-color: transparent;
 }
 
 .header {
@@ -249,4 +248,57 @@
   .sidebar {
     flex-direction: column;
   }
+}
+
+/* 上方消息区域，占据 2/5 的空间 */
+.messageContainer {
+  flex: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  position: relative; /* 用于气泡定位 */
+}
+
+/* 消息气泡样式 */
+.bubble {
+  background-color: white;
+  padding: 15px 25px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-size: 1.2em;
+  color: #333;
+  max-width: 80%;
+  text-align: center;
+  animation: fadeInOut 5s ease-in-out forwards;
+}
+
+/* 淡入淡出动画 */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+/* 下方模型区域，占据 3/5 的空间 */
+.modelContainer {
+  flex: 3;
+  display: flex;
+  justify-content: center;
+  /* align-items: center; */ /* 移除此行，让模型从顶部对齐 */
+  position: relative;
+  overflow: hidden; /* 确保模型不会超出容器 */
 } 
