@@ -26,5 +26,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src", "src/types/live2d.d.ts"],
+  "exclude": ["src/components/SimpleLive2DDemo.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

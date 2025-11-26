@@ -1,166 +1,57 @@
-import React, { useState, useRef } from "react";
-import CharacterImage from "../components/CharacterImage";
+import React, { useState, useRef, useEffect } from "react";
+import Live2DModel from "../components/Live2DModel";
 import ErrorBoundary from "../components/ErrorBoundary";
-import UnifiedDialog from "../components/UnifiedDialog";
+import DialogManager, { DialogManagerHandle } from "./MainPage/DialogManager";
 import styles from "./MainPage.module.css";
-import CaseMaterialIssueDialog from "../components/CaseMaterialIssueDialog";
+//
+import { isTauri as isTauriEnv } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
+import { usePetExpression } from "../hooks/usePetExpression";
 
 const MainPage: React.FC = () => {
-  // 通用弹窗状态
-  const [dialogTitle, setDialogTitle] = useState<string | undefined>(undefined);
-  const [dialogContent, setDialogContent] = useState<React.ReactNode>("");
-  const [dialogActions, setDialogActions] = useState<React.ReactNode>(null);
-  const [dialogLoading, setDialogLoading] = useState(false);
+  // 页面核心：桌宠主视图与交互驱动的统一弹窗
+  const [bubbleMessage, setBubbleMessage] = useState<string | null>(null);
+  const lastOpenRef = useRef<boolean | null>(null); // 记录最近一次弹窗开关，防止重复触发
+  const [dragHint, setDragHint] = useState(false);
+  const dialogRef = useRef<DialogManagerHandle | null>(null);
 
-  // 状态管理：小人当前状态
-  const [characterState, setCharacterState] = useState<string>("waitting");
-  // 状态名到图片路径的映射
-  const characterStatesMap = {
-    error: "/img/error.png",
-    success: "/img/success.png",
-    think: "/img/think.png",
-    waitting: "/img/waitting.png",
-  };
 
   // 小人图片ref
   const imageRef = useRef<HTMLDivElement>(null);
-  interface ActionButton {
-    text: string;
-    action?: string;
-  }
+  const { expression, setExpression, pulseExpression } = usePetExpression();
+  
 
-  const fileContent = (files: FileList) => (
-    <div className="file-content">
-      <div className="file-title">收到文件：{files[0].name}</div>
-      <div className="file-progress">处理中...</div>
-    </div>
-  );
-
-  const actionButtons: ActionButton[] = [
-    { text: "上传案件到安全行政执法系统" },
-    { text: "提取文档关键字段" },
-    { text: "总结文档内容" },
-  ];
-
-  const errorButtons: ActionButton[] = [
-    { text: "一、涉案单位名称缺少行政区划", action: "去处理" },
-    { text: "二、案件附件存在问题", action: "去处理" },
-  ];
+  const emitDialogState = (open: boolean) => {
+    if (lastOpenRef.current === open) return;
+    lastOpenRef.current = open;
+    if (open) setDragHint(false);
+    if (!isTauriEnv()) return;
+    emit("ui_dialog_state", { open });
+  };
 
   // 拖拽文件到小人物时的处理逻辑
   const handleFileDrop = (files: FileList) => {
     if (files.length > 0) {
-      setDialogTitle("");
-      setDialogContent(fileContent(files));
-      setCharacterState("think");
-      setTimeout(() => {
-        setDialogLoading(true);
-        setTimeout(() => {
-          setDialogLoading(false);
-          setDialogTitle("您需要我做什么？");
-          setDialogContent(renderActionButtons(actionButtons, files));
-        }, 1000);
-      }, 1000);
+      console.log(`[monitor] file-drop start name=${files[0].name} ts=${Date.now()}`);
+      try { emit("ui_interaction", { type: "file-drop", name: files[0].name, ts: Date.now() }); } catch {}
+      emitDialogState(true);
+      setExpression("kaixin");
+      dialogRef.current?.showFileDrop(files);
     }
   };
 
-  const handleActionButtonClick = (
-    text: string,
-    _action?: string,
-    files?: FileList
-  ) => {
-    switch (_action) {
-      case "去处理":
-        const data = {
-          name: "万得信息技术股份有限公司",
-          errorContent: [
-            {
-              content: "行政处罚决定书的涉案单位名称与案件信息中的名称不符",
-              type: "errorUpload" as const,
-            },
-            {
-              content:
-                "当前只上传了行政处罚决定书，是否需要上传其他附件，以下为常见附件：",
-              type: "warningUpload" as const,
-              hasType: "行政处罚决定书",
-              missingType: [
-                { type: "检查通知书", percent: 79 },
-                { type: "限期整改通知书", percent: 83 },
-                { type: "行政处罚决定书", percent: 79 },
-                { type: "整改通知书", percent: 68 },
-                { type: "受案登记表", percent: 65 },
-                { type: "整改报告", percent: 61 },
-                { type: "当场处罚决定书", percent: 57 },
-              ],
-            },
-          ],
-        };
-        setDialogContent(
-          <CaseMaterialIssueDialog
-            {...data}
-            onResolved={() => {
-              setDialogTitle("案件材料相关问题已经全部解决");
-              const content = () => {
-                return (
-                  <div className="case-material-issue-dialog-resolved">
-                    <div className="case-material-issue-dialog-resolved-box">
-                      <span>需要立即提交到安全行政执法系统？</span>
-                      <button
-                        className="case-material-issue-dialog-btn primary"
-                        onClick={handleSubmitSuccess}
-                      >
-                        立即提交
-                      </button>
-                    </div>
-                  </div>
-                );
-              };
-              setDialogContent(content);
-            }}
-          />
-        );
-        break;
-      default:
-        setDialogContent(<div>正在处理"{text}"...</div>);
-        setTimeout(() => {
-          setDialogTitle("您提交的材料存在以下问题:");
-          setDialogContent(renderActionButtons(errorButtons, files));
-        }, 1500);
-        break;
-    }
-  };
+  // 操作按钮逻辑由 DialogManager 内部处理
 
-  const renderActionButtons = (
-    actionButtons: ActionButton[],
-    files?: FileList
-  ) => (
-    <div className="action-buttons">
-      {actionButtons.map((text, index) => (
-        <button
-          key={index}
-          onClick={() => handleActionButtonClick(text.text, text.action, files)}
-        >
-          <span className="action-button-text">{text.text}</span>
-          {text.action ? (
-            <span className="action-button-action">{text.action}</span>
-          ) : (
-            <span style={{ width: 60 }}></span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
+  // 操作按钮渲染由 DialogManager 内部处理
 
-  // 双击小人时弹窗
+  // Dify iframe 渲染由 DialogManager 内部处理
+
   const handleDoubleClick = () => {
-    setDialogTitle(undefined);
-    setDialogContent("你干嘛~");
-    setDialogActions(null);
-    setCharacterState("error");
-    setTimeout(() => {
-      setCharacterState("waitting");
-      setDialogContent("");
-    }, 2000);
+    // 关键帧：双击桌宠，打开 AI 助手侧栏（Dify）
+    try { emit("ui_interaction", { type: "dblclick", ts: Date.now() }); } catch {}
+    emitDialogState(true);
+    dialogRef.current?.showMenu();
+    setExpression("kaixin");
   };
 
   // 拓展：可操作弹窗示例
@@ -177,136 +68,141 @@ const MainPage: React.FC = () => {
 
   // 拖拽窗口时切换小人状态
   const handleDragStart = () => {
-    setCharacterState("success");
-    setTimeout(() => setCharacterState("waitting"), 5000);
+    pulseExpression("kaixin", 5000, "normal");
   };
 
-  const handleSubmitSuccess = () => {
-    setDialogTitle("");
-    setCharacterState("success");
-    setDialogContent(
-      <div className="case-material-issue-dialog-success">
-        <div className="case-material-issue-dialog-success-title">
-          <span className="case-material-issue-dialog-success-title-content-text">
-            提交成功
-          </span>
-          <span className="case-material-issue-dialog-success-title-content">
-            您的案件已经提交成功，案件编号为：
-            <b className="case-material-issue-dialog-success-title-content-number">
-              AJ0000003
-            </b>
-          </span>
-          <button className="case-material-issue-dialog-btn primary">
-            查看详情
-          </button>
-        </div>
-        <div className="case-material-issue-dialog-success-box">
-          <div className="case-material-issue-dialog-success-box-part">
-            <div className="case-material-issue-dialog-success-box-title">
-              以下为案件的考评结果：
-            </div>
-            <div className="case-material-issue-dialog-success-box-content">
-              <div className="case-material-issue-dialog-success-box-content-item">
-                案件定性：
-                <span>属于网络安全行政执法案件</span>
-              </div>
-              <div className="case-material-issue-dialog-success-box-content-item">
-                案件考评：
-                <span className="case-material-issue-dialog-success-box-content-item-number">
-                  ★★★★★
-                </span>
-              </div>
-            </div>
-            <div className="case-material-issue-dialog-success-box-content-tag">
-              <span className="case-material-issue-dialog-success-tag">
-                典型案件
-              </span>
-              <span className="case-material-issue-dialog-success-tag">
-                资料详细
-              </span>
-              <span className="case-material-issue-dialog-success-tag">
-                办案及时
-              </span>
-              <span className="case-material-issue-dialog-success-tag">
-                处罚得当
-              </span>
-              <span className="case-material-issue-dialog-success-tag">
-                证据齐全
-              </span>
-            </div>
-            <div className="case-material-issue-dialog-success-box-content-text">
-              经过本部门调查取证，此案件已确定为本市黑客攻击行为，黑客具体资料和攻击证据截图已经上传附件，责任单位可以进一步进行处理。如果需要进一步提供资料请联系系统负责人黑客具体资料和攻击证据截图已经上传附件，责任单位可以进一步进行处理。如果需要我方进一步提供资料请联系系统负责人王伟
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // 提交成功由 DialogManager 内部触发
+
+  useEffect(() => {
+    try {
+      if (imageRef.current) {
+        const rect = imageRef.current.getBoundingClientRect();
+        emit("ui_interactive_rects", [{ x: rect.left, y: rect.top, w: rect.width, h: rect.height }]);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    // 监听窗口尺寸变化并同步可交互区域，避免点击偏移
+    const onResize = () => {
+      try {
+        if (imageRef.current) {
+          const rect = imageRef.current.getBoundingClientRect();
+          emit("ui_interactive_rects", [{ x: rect.left, y: rect.top, w: rect.width, h: rect.height }]);
+        }
+      } catch {}
+    };
+    window.addEventListener("resize", onResize);
+    onResize();
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Dify 关闭消息由 DialogManager 处理
+
+  useEffect(() => {
+    // 全局拖拽态处理：仅在桌宠区域内接收 drop，外部则清除提示
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const onDrop = (e: DragEvent) => {
+      try {
+        const el = imageRef.current;
+        if (!el) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragHint(false);
+          return;
+        }
+        const rect = el.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        const inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        if (!inside) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragHint(false);
+        }
+      } catch {
+        e.preventDefault();
+        setDragHint(false);
+      }
+    };
+    const onDragEnd = () => {
+      setDragHint(false);
+    };
+    const onDragLeave = () => {
+      setDragHint(false);
+    };
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("drop", onDrop);
+    window.addEventListener("dragend", onDragEnd);
+    window.addEventListener("dragleave", onDragLeave);
+    return () => {
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("dragend", onDragEnd);
+      window.removeEventListener("dragleave", onDragLeave);
+    };
+  }, []);
+
+  
 
   return (
     <div className={styles.container}>
-      {/* 通用弹窗 */}
-      <UnifiedDialog
-        open={!!dialogContent || dialogLoading}
-        title={dialogTitle}
-        content={
-          dialogLoading ? (
-            <div
-              className="dialog-loading"
-              style={{ textAlign: "center", padding: 48 }}
-            >
-              <span
-                className="loading-spinner"
-                style={{
-                  display: "inline-block",
-                  width: 32,
-                  height: 32,
-                  border: "4px solid #eee",
-                  borderTop: "4px solid #409eff",
-                  borderRadius: "50%",
-                  animation: "spin 1s linear infinite",
-                  marginBottom: 12,
-                }}
-              />
-              <div>处理中...</div>
-            </div>
-          ) : (
-            dialogContent
-          )
-        }
-        actions={dialogActions}
-        onClose={() => {
-          setDialogContent("");
-          setCharacterState("waitting");
-          setDialogLoading(false);
+      <DialogManager
+        ref={dialogRef}
+        onDialogStateChange={emitDialogState}
+        onFlowEvent={(evt) => {
+          if (evt.type === "file-drop-dialog-ready") {
+            try { emit("ui_interaction", { type: "file-drop-dialog-ready", ts: Date.now() }); } catch {}
+          }
+          if (evt.type === "dify-open") {
+            try { emit("ui_interaction", { type: "dify-open", ts: Date.now() }); } catch {}
+          }
+          if (evt.type === "dify:close") {
+            emitDialogState(false);
+          }
+          if (evt.type === "assistant-bubble") {
+            const txt = (evt as any).payload?.text || "";
+            const short = txt.length > 80 ? txt.slice(0, 80) + "…" : txt;
+            setBubbleMessage(short);
+            setTimeout(() => setBubbleMessage(null), 5000);
+          }
+          if (evt.type === "user-bubble") {
+            const txt = (evt as any).payload?.text || "";
+            const short = txt.length > 80 ? txt.slice(0, 80) + "…" : txt;
+            setBubbleMessage(short);
+            setTimeout(() => setBubbleMessage(null), 3000);
+          }
         }}
       />
       {/* 下方模型区域 */}
       <div className={styles.modelContainer}>
         <ErrorBoundary>
-          <div ref={imageRef} style={{ display: "inline-block" }}>
-            <CharacterImage
-              state={characterState}
-              statesMap={characterStatesMap}
-              width={120}
-              height={180}
-              alt="智能助手"
-              onDoubleClick={handleDoubleClick}
-              onDragStart={handleDragStart}
-              onFileDrop={handleFileDrop}
-              dragArea="bottom"
-            />
+          <div ref={imageRef} className={`${dragHint ? styles.dragHighlight : ""} ${styles.inlineBlock}`}>
+              <Live2DModel
+                width={120}
+                height={180}
+                modelPath="/AIPeople/jiqiren.model3.json"
+                // 关键帧：页面状态驱动的表情传递给模型组件
+                expressionName={expression}
+                onDoubleClick={handleDoubleClick}
+                onDragStart={handleDragStart}
+                onFileDrop={handleFileDrop}
+                onDragEnter={() => setDragHint(true)}
+                onDragLeave={() => setDragHint(false)}
+                dragArea="bottom"
+              />
           </div>
         </ErrorBoundary>
+        {bubbleMessage && (
+          <div className={styles.bubbleOverlay}>
+            <div className={styles.bubble}>{bubbleMessage}</div>
+          </div>
+        )}
       </div>
       {/* 示例：可操作弹窗按钮 */}
       {/* <button onClick={showActionDialog}>显示操作弹窗</button> */}
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };

@@ -1,0 +1,41 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "jiqiren.moc3",
+		"Textures": [
+			"jiqiren.2048/texture_00.png"
+		],
+		"Physics": "jiqiren.physics3.json",
+		"DisplayInfo": "jiqiren.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "expression1",
+				"File": "bugaoxing.exp3.json"
+			},
+			{
+				"Name": "expression2",
+				"File": "kaixin.exp3.json"
+			},
+			{
+				"Name": "expression3",
+				"File": "normal.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		}
+	],
+	"HitAreas": []
+}

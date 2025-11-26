@@ -306,3 +306,37 @@
   display: flex;
   justify-content: center;
 }
+
+.bubbleOverlay {
+  position: absolute;
+  left: 50%;
+  bottom: 200px;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.dragHintOverlay {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 11;
+  background: rgba(64, 158, 255, 0.85);
+  color: #fff;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(64, 158, 255, 0.3);
+  pointer-events: none;
+  text-align: center;
+}
+
+.dragHighlight {
+  outline: 2px dashed #409eff;
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.inlineBlock {
+  display: inline-block;
+}

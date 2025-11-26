@@ -13,7 +13,13 @@ use std::path::PathBuf;
 use uuid::Uuid;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tauri::Listener; // <--- 关键改动 1
+use tauri::Manager;
+#[cfg(windows)]
+use windows::Win32::Foundation::POINT;
+#[cfg(windows)]
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 mod api_server;
 
@@ -326,9 +332,11 @@ pub fn run() {
             api_server::start_server(app.handle().clone(), waiting_requests.clone());
 
             // 设置事件监听器，用于接收前端返回的用户输入
+            println!("[backend] setup: registering event listeners");
             app.listen("user_input_response", move |event| {
                 // <--- 关键改动 2
                 let payload_str = event.payload();
+                println!("[backend] user_input_response payload={}", payload_str);
                 if let Ok(payload) = serde_json::from_str::<UserInputResponsePayload>(payload_str) {
                     let mut waiting = waiting_requests_clone.lock().unwrap();
                     if let Some(tx) = waiting.remove(&payload.correlation_id) {
@@ -340,6 +348,231 @@ pub fn run() {
                      eprintln!("Failed to deserialize user input response payload: {}", payload_str);
                 }
             });
+
+            // 监听前端对话框状态（不再调整主窗体尺寸，只记录打开状态并调整层级属性）
+            let app_handle_for_resize = app.handle().clone();
+            // 关键帧状态：(last_instant, last_open, current_txn_id, in_progress)
+            let resize_state = Arc::new(Mutex::new((Instant::now(), None::<bool>, None::<String>, false)));
+            // 记录主窗体的系统事件，便于定位闪烁的关键帧
+            if let Some(main_win) = app.get_webview_window("main") {
+                let resize_state_ev = resize_state.clone();
+                main_win.on_window_event(move |ev| {
+                    let txn = {
+                        let g = resize_state_ev.lock().unwrap();
+                        g.2.clone().unwrap_or_else(|| "-".to_string())
+                    };
+                    match ev {
+                        tauri::WindowEvent::Resized(size) => {
+                            println!("[KF] txn={} event=Resized size={}x{}", txn, size.width, size.height);
+                        }
+                        tauri::WindowEvent::Moved(pos) => {
+                            println!("[KF] txn={} event=Moved pos=({}, {})", txn, pos.x, pos.y);
+                        }
+                        tauri::WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size: _, .. } => {
+                            println!("[KF] txn={} event=ScaleFactorChanged scale={}", txn, scale_factor);
+                        }
+                        _ => {}
+                    }
+                });
+            }
+            let resize_state_clone = resize_state.clone();
+            app.listen("ui_dialog_state", move |event| {
+                let payload_str = event.payload();
+                println!("[backend] ui_dialog_state received payload={}", payload_str);
+                let mut open = false;
+                let s = payload_str.trim();
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(s) {
+                    if let Some(b) = v.as_bool() {
+                        open = b;
+                    } else if let Some(st) = v.as_str() {
+                        open = st.eq_ignore_ascii_case("open");
+                        if st.eq_ignore_ascii_case("close") { open = false; }
+                    } else if let Some(b) = v.get("open").and_then(|x| x.as_bool()) {
+                        open = b;
+                    }
+                } else {
+                    let unquoted = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 { &s[1..s.len()-1] } else { s };
+                    if unquoted.eq_ignore_ascii_case("open") { open = true; }
+                    if unquoted.eq_ignore_ascii_case("close") { open = false; }
+                }
+
+                // 去抖与事务ID：同状态在 150ms 内重复触发则忽略
+                let txn_id = Uuid::new_v4().to_string();
+                {
+                    let mut g = resize_state_clone.lock().unwrap();
+                    let now = Instant::now();
+                    let dt = now.duration_since(g.0).as_millis();
+                    if g.1 == Some(open) && dt < 150 {
+                        println!("[KF] skip txn: same open={} dt={}ms", open, dt);
+                        return;
+                    }
+                    g.0 = now;
+                    g.1 = Some(open);
+                    g.2 = Some(txn_id.clone());
+                    g.3 = true;
+                }
+                match app_handle_for_resize.get_webview_window("main") {
+                    Some(win) => {
+                        println!("[KF] txn={} begin open={}", txn_id, open);
+                        // 固定窗体尺寸，不再变更；仅调整置顶/阴影
+                        if open {
+                            let _ = win.set_always_on_top(false);
+                            let _ = win.set_shadow(false);
+                            println!("[KF] txn={} shadow=off, alwaysOnTop=off", txn_id);
+                        } else {
+                            let _ = win.set_shadow(false);
+                            let _ = win.set_always_on_top(true);
+                            println!("[KF] txn={} shadow=off, alwaysOnTop=on", txn_id);
+                        }
+                        {
+                            let mut g = resize_state_clone.lock().unwrap();
+                            g.3 = false;
+                            println!("[KF] txn={} end", txn_id);
+                        }
+                    }
+                    None => {
+                        eprintln!("[backend] main window not found; available: {:?}", app_handle_for_resize.webview_windows().keys().collect::<Vec<_>>());
+                    }
+                }
+            });
+
+            app.listen("ui_interaction", move |event| {
+                println!("[backend] ui_interaction payload={}", event.payload());
+            });
+
+            // 鼠标所在区域：空白区穿透，交互区拦截
+            let app_handle_for_pointer = app.handle().clone();
+            let interactive_rects: Arc<Mutex<Vec<(i32, i32, i32, i32)>>> = Arc::new(Mutex::new(Vec::new()));
+            let interactive_rects_update = interactive_rects.clone();
+            app.listen("ui_pointer_region", move |event| {
+                let payload_str = event.payload();
+                let mut interactive = false;
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload_str) {
+                    if let Some(b) = v.get("interactive").and_then(|x| x.as_bool()) {
+                        interactive = b;
+                    }
+                }
+                match app_handle_for_pointer.get_webview_window("main") {
+                    Some(win) => {
+                        if interactive {
+                            println!("[KF] pointer region interactive=true -> ignoreCursorEvents=false");
+                            let _ = win.set_ignore_cursor_events(false);
+                        } else {
+                            println!("[KF] pointer region interactive=false -> keep previous ignore state");
+                        }
+                    }
+                    None => {
+                        eprintln!("[backend] main window not found for pointer region");
+                    }
+                }
+            });
+
+            app.listen("http_debug", move |event| {
+                let raw = event.payload();
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) {
+                    let phase = v.get("phase").and_then(|x| x.as_str()).unwrap_or("-");
+                    let typ = v.get("type").and_then(|x| x.as_str()).unwrap_or("-");
+                    let url = v.get("url").and_then(|x| x.as_str()).unwrap_or("-");
+                    let status = v.get("status").and_then(|x| x.as_i64()).unwrap_or(-1);
+                    println!(
+                        "[http-debug] ts={} phase={} type={} url={} status={}",
+                        ts, phase, typ, url, status
+                    );
+                    if let Some(h) = v.get("headers") {
+                        println!("[http-debug] headers={}", h);
+                    }
+                } else {
+                    println!("[http-debug] ts={} raw={}", ts, raw);
+                }
+            });
+
+            // 前端传递交互区域（相对窗体的逻辑像素），用于后端命中测试
+            app.listen("ui_interactive_rects", move |event| {
+                let payload_str = event.payload();
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload_str) {
+                    let mut rects = Vec::new();
+                    if let Some(arr) = v.as_array() {
+                        for r in arr {
+                            let x = r.get("x").and_then(|x| x.as_f64()).unwrap_or(0.0) as i32;
+                            let y = r.get("y").and_then(|x| x.as_f64()).unwrap_or(0.0) as i32;
+                            let w = r.get("w").and_then(|x| x.as_f64()).unwrap_or(0.0) as i32;
+                            let h = r.get("h").and_then(|x| x.as_f64()).unwrap_or(0.0) as i32;
+                            rects.push((x, y, w, h));
+                        }
+                    }
+                    let mut g = interactive_rects_update.lock().unwrap();
+                    *g = rects;
+                    println!("[KF] interactive rects updated: {}", g.len());
+                }
+            });
+
+            // 轮询鼠标位置进行命中测试（当无弹窗时：空白区穿透；有弹窗时：全窗体可交互）
+            let app_handle_for_poll = app.handle().clone();
+            let rects_for_poll = interactive_rects.clone();
+            let resize_state_for_poll = resize_state.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last_ignore = false;
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+                    let dialog_open = {
+                        let g = resize_state_for_poll.lock().unwrap();
+                        g.1.unwrap_or(false)
+                    };
+                    if let Some(win) = app_handle_for_poll.get_webview_window("main") {
+                        if dialog_open {
+                            if last_ignore {
+                                let _ = win.set_ignore_cursor_events(false);
+                                last_ignore = false;
+                                println!("[KF] poll: dialog open -> ignoreCursorEvents=false");
+                            }
+                            continue;
+                        }
+                        // 获取鼠标屏幕坐标
+                        #[cfg(windows)]
+                        let (cursor_x, cursor_y) = unsafe {
+                            let mut p = POINT { x: 0, y: 0 };
+                            let _ = GetCursorPos(&mut p);
+                            (p.x, p.y)
+                        };
+                        #[cfg(not(windows))]
+                        let (cursor_x, cursor_y) = (0, 0);
+                        // 窗体位置与缩放
+                        if let (Ok(pos), Ok(scale)) = (win.outer_position(), win.scale_factor()) {
+                            let x_rel = cursor_x - pos.x;
+                            let y_rel = cursor_y - pos.y;
+                            // 命中交互区域
+                            let rects = rects_for_poll.lock().unwrap().clone();
+                            let mut hit = false;
+                            for (x, y, w, h) in rects {
+                                let xr = ((x as f64) * scale).round() as i32;
+                                let yr = ((y as f64) * scale).round() as i32;
+                                let wr = ((w as f64) * scale).round() as i32;
+                                let hr = ((h as f64) * scale).round() as i32;
+                                if x_rel >= xr && x_rel <= xr + wr && y_rel >= yr && y_rel <= yr + hr {
+                                    hit = true;
+                                    break;
+                                }
+                            }
+                            let target_ignore = !hit;
+                            if target_ignore != last_ignore {
+                                let _ = win.set_ignore_cursor_events(target_ignore);
+                                last_ignore = target_ignore;
+                                println!("[KF] poll: set ignoreCursorEvents={} (hit={})", target_ignore, hit);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 默认启用可点击，避免因穿透导致无法进入交互区
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_ignore_cursor_events(false);
+                println!("[KF] init ignoreCursorEvents=false");
+            }
 
             #[cfg(mobile)]
             {
@@ -354,6 +587,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             save_diary,
