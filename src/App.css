@@ -1,1 +1,5 @@
 /* The existing styles have been cleared to prevent conflicts with the new layout. */
+@font-face {
+  font-family: "Alimama ShuHeiTi";
+  src: url("../public/fonts/ALIMAMA_SHUHEITI_BOLD.TTF");
+}

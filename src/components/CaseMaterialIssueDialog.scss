@@ -1,0 +1,85 @@
+.case-material-issue-dialog {
+  font-size: 14px;
+  font-weight: 400;
+  color: #333333;
+  .case-material-issue-dialog-item {
+    background: rgba(255, 255, 255, 0.35);
+    box-shadow: 1px 2px 8px 0px rgba(46, 133, 255, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .case-material-issue-dialog-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .case-material-issue-dialog-desc {
+    margin-bottom: 12px;
+    .case-material-issue-dialog-highlight {
+      color: #e74c3c;
+      font-weight: 500;
+    }
+  }
+  .case-material-issue-dialog-edit-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    .case-material-issue-dialog-input {
+      width: 200px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      padding: 0 12px;
+      margin-right: 8px;
+    }
+  }
+  .case-material-issue-dialog-btn {
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    cursor: pointer;
+    margin-bottom: 0;
+    margin-right: 0;
+    font-weight: bold;
+    font-size: 12px;
+    &.primary {
+      background: #bbd7ff;
+      color: #016ae4;
+    }
+    &:not(.primary) {
+      background: #e4e7ed;
+      color: #606266;
+    }
+    & + .case-material-issue-dialog-btn {
+      margin-left: 8px;
+    }
+  }
+  .case-material-issue-dialog-list {
+    margin-bottom: 12px;
+    font-size: 12px;
+
+    .case-material-issue-dialog-list-type {
+      color: #859ab4;
+      display: inline-block;
+      width: 160px;
+      font-weight: bold;
+    }
+  }
+  .case-material-issue-dialog-list-highlight {
+    .case-material-issue-dialog-list-type {
+      color: #409eff;
+    }
+  }
+  .case-material-issue-dialog-name-changed {
+    color: #409eff;
+    font-weight: 500;
+    margin-left: 4px;
+  }
+  .case-material-issue-dialog-upload-error {
+    color: #e74c3c;
+    font-size: 12px;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+}

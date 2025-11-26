@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.pnpm-lock.yaml
 
 node_modules
 dist
@@ -16,9 +17,14 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.vscode
+.cursor
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+CubismSdkForWeb-5-r.4/*
+CubismSdkForWeb-5-r.4.zip

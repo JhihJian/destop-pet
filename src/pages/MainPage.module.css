@@ -81,9 +81,15 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 .main {
@@ -212,39 +218,39 @@
     grid-template-columns: 1fr;
     grid-template-rows: 1fr auto;
   }
-  
+
   .sidebar {
     flex-direction: row;
     overflow-x: auto;
   }
-  
+
   .infoCard,
   .messageCard,
   .controlCard {
     min-width: 250px;
-}
+  }
 }
 
 @media (max-width: 768px) {
   .container {
     padding: 15px;
   }
-  
+
   .header {
     padding: 15px 20px;
     flex-direction: column;
     gap: 10px;
     text-align: center;
-}
+  }
 
   .title {
     font-size: 24px;
   }
-  
+
   .main {
     height: calc(100vh - 160px);
   }
-  
+
   .sidebar {
     flex-direction: column;
   }
@@ -293,12 +299,10 @@
   }
 }
 
-/* 下方模型区域，占据 3/5 的空间 */
 .modelContainer {
-  flex: 3;
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
   display: flex;
   justify-content: center;
-  /* align-items: center; */ /* 移除此行，让模型从顶部对齐 */
-  position: relative;
-  overflow: hidden; /* 确保模型不会超出容器 */
-} 
+}
