@@ -11,6 +11,8 @@ export interface Live2DModelProps {
   modelPath?: string;
   // 外部传入的表情标识，使用模型 Expressions 的文件名（去掉 .exp3.json）
   expressionName?: string;
+  // 行为优先级：当为 true 时，禁止进入空闲态覆盖为 normal
+  suppressIdle?: boolean;
   style?: React.CSSProperties;
   onDoubleClick?: () => void;
   onDragStart?: () => void;
@@ -40,6 +42,7 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
   height = 180,
   modelPath = "/Resources/Haru/Haru.model3.json",
   expressionName,
+  suppressIdle = false,
   style,
   onDoubleClick,
   onDragStart,
@@ -60,6 +63,11 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
   );
   const modelRef = useRef<any>(null);
   const pointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastActivityRef = useRef<number>(Date.now());
+  const idleRef = useRef<boolean>(false);
+  const normalAppliedRef = useRef<boolean>(false);
+  const draggingRef = useRef<boolean>(false);
+  const pointerInWindowRef = useRef<boolean>(true);
   const updatePointerByClient = (clientX: number, clientY: number) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -103,12 +111,59 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
           const m = modelRef.current;
           const core = m?.internalModel?.coreModel;
           if (!core) return;
+          const now = Date.now();
+          const idleCandidate = idleRef.current || now - lastActivityRef.current >= 60000;
+          const idle = !suppressIdle && idleCandidate;
+          idleRef.current = idle;
           const k = 0.15;
-          const tx = pointerRef.current.x * 30;
-          const ty = -pointerRef.current.y * 30;
-          const tz = pointerRef.current.x * 10;
-          const eyeX = pointerRef.current.x;
-          const eyeY = -pointerRef.current.y;
+          let tx: number;
+          let ty: number;
+          let tz: number;
+          let eyeX: number;
+          let eyeY: number;
+          const t = performance.now() * 0.001;
+          if (idle) {
+            tx = Math.sin(t) * 8;
+            ty = Math.sin(t * 1.2) * 6;
+            tz = Math.sin(t * 0.8) * 4;
+            eyeX = Math.sin(t * 1.5) * 0.5;
+            eyeY = Math.sin(t * 1.7) * 0.5;
+            const currentIsNormal = !expressionName || (String(expressionName).toLowerCase() === "normal");
+            if (currentIsNormal && !normalAppliedRef.current) {
+              const idx = expressionMap["normal"];
+              try {
+                if (typeof idx === "number") (m as any).expression(idx);
+                else (m as any).expression("normal");
+              } catch {}
+              normalAppliedRef.current = true;
+            }
+          } else {
+            if (pointerInWindowRef.current) {
+              tx = pointerRef.current.x * 30;
+              ty = -pointerRef.current.y * 30;
+              tz = pointerRef.current.x * 10;
+              eyeX = pointerRef.current.x;
+              eyeY = -pointerRef.current.y;
+            } else {
+              tx = 0;
+              ty = 0;
+              tz = 0;
+              eyeX = 0;
+              eyeY = 0;
+            }
+            if (draggingRef.current) {
+              tx = 0;
+              ty = 0;
+              tz = 0;
+              eyeX = 0;
+              eyeY = 0;
+            }
+          }
+          const mod = t % 4;
+          let eyeOpen = 1;
+          if (mod < 0.06) eyeOpen = 1 - (mod / 0.06);
+          else if (mod < 0.12) eyeOpen = (mod - 0.06) / 0.06;
+          else eyeOpen = 1;
           const cx = (core as any).getParameterValueById?.("ParamAngleX") ?? 0;
           const cy = (core as any).getParameterValueById?.("ParamAngleY") ?? 0;
           const cz = (core as any).getParameterValueById?.("ParamAngleZ") ?? 0;
@@ -124,6 +179,10 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
           (core as any).setParameterValueById?.("ParamBodyAngleX", nbx);
           (core as any).setParameterValueById?.("ParamEyeBallX", eyeX);
           (core as any).setParameterValueById?.("ParamEyeBallY", eyeY);
+          (core as any).setParameterValueById?.("ParamEyeLOpen", Math.max(0, Math.min(1, eyeOpen)));
+          (core as any).setParameterValueById?.("ParamEyeROpen", Math.max(0, Math.min(1, eyeOpen)));
+          const breath = Math.sin(t * (2 * Math.PI) / 5) * 2;
+          (core as any).setParameterValueById?.("ParamBodyAngleY", breath);
         });
         // 解析模型设定的 Expressions，优先以文件名作为唯一来源（与资源真实文件一致）
         const settings: any = (model as any).internalModel?.settings;
@@ -157,14 +216,45 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
     })();
     const onMove = (ev: MouseEvent) => {
       updatePointerByClient(ev.clientX, ev.clientY);
+      lastActivityRef.current = Date.now();
+      idleRef.current = false;
+      normalAppliedRef.current = false;
+      pointerInWindowRef.current = true;
     };
     const onLeave = (ev: MouseEvent) => {
       if (!ev.relatedTarget) {
         pointerRef.current = { x: 0, y: 0 };
+        idleRef.current = true;
+        normalAppliedRef.current = false;
+        pointerInWindowRef.current = false;
       }
     };
+    const onDown = () => {
+      lastActivityRef.current = Date.now();
+      idleRef.current = false;
+      normalAppliedRef.current = false;
+    };
+    const onKey = () => {
+      lastActivityRef.current = Date.now();
+      idleRef.current = false;
+      normalAppliedRef.current = false;
+    };
+    const onWheel = () => {
+      lastActivityRef.current = Date.now();
+      idleRef.current = false;
+      normalAppliedRef.current = false;
+    };
+    const onUp = () => { draggingRef.current = false; };
+    const onBlur = () => { idleRef.current = true; normalAppliedRef.current = false; pointerInWindowRef.current = false; };
+    const onFocus = () => { lastActivityRef.current = Date.now(); idleRef.current = false; normalAppliedRef.current = false; pointerInWindowRef.current = true; };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseleave", onLeave);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("wheel", onWheel);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
     return () => {
       disposed = true;
       if (appRef.current) {
@@ -175,6 +265,12 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
       }
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseleave", onLeave);
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
     };
   }, [width, height, modelPath]);
 
@@ -194,6 +290,9 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
         m.expression(key);
       } catch {}
     }
+    lastActivityRef.current = Date.now();
+    idleRef.current = false;
+    normalAppliedRef.current = false;
   }, [expressionName, expressionMap]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -212,6 +311,7 @@ const Live2DModelView: React.FC<Live2DModelProps> = ({
 
   const handleMouseDown = async (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button === 0) {
+      draggingRef.current = true;
       if (onDragStart) onDragStart();
       try {
         if (isTauri) {

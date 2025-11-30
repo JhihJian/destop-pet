@@ -10,6 +10,7 @@ import LoadingView from "./dialogs/Loading";  // 加载中弹窗
 export interface DialogManagerHandle {
   showFileDrop: (files: FileList) => void;
   showMenu: () => void;
+  showUserInputRequest: (message: string, options: string[], onResponse: (response: string) => void) => void;
   close: () => void;
 }
 
@@ -57,6 +58,41 @@ const DialogManager = forwardRef<DialogManagerHandle, DialogManagerProps>(
       setOpen(true);
     };
 
+    const showUserInputRequest = (message: string, options: string[], onResponse: (response: string) => void) => {
+      setTitle("请求确认");
+      setContent(
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div style={{ fontSize: '16px', color: '#333', lineHeight: '1.5' }}>{message}</div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '10px' }}>
+            {options.map(opt => (
+              <button
+                key={opt}
+                onClick={() => {
+                  onResponse(opt);
+                  close();
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  border: '1px solid #d9d9d9',
+                  background: 'white',
+                  cursor: 'pointer',
+                  color: '#333',
+                  fontSize: '14px',
+                  minWidth: '80px'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = '#40a9ff'}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = '#d9d9d9'}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+      setOpen(true);
+    };
+
     const close = () => {
       setTitle("");
       setContent("");
@@ -64,7 +100,7 @@ const DialogManager = forwardRef<DialogManagerHandle, DialogManagerProps>(
       setOpen(false);
     };
 
-    useImperativeHandle(ref, () => ({ showFileDrop, showMenu, close }));
+    useImperativeHandle(ref, () => ({ showFileDrop, showMenu, showUserInputRequest, close }));
 
     useEffect(() => {
       onDialogStateChange?.(open);

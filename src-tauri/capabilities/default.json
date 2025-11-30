@@ -5,11 +5,21 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://**" },
+        { "url": "https://**" },
+        { "url": "http://192.168.1.195:3000/**" }
+      ]
+    },
     "opener:default",
     {
       "identifier": "fs:scope",
       "allow": [{ "path": "/**" }]
     },
+    "fs:allow-read-file",
+    "fs:allow-write-file",
     "fs:allow-app-read-recursive",
     "fs:allow-app-write-recursive",
     "fs:allow-app-meta-recursive",

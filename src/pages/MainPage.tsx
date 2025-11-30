@@ -5,13 +5,14 @@ import DialogManager, { DialogManagerHandle } from "./MainPage/DialogManager";
 import styles from "./MainPage.module.css";
 //
 import { isTauri as isTauriEnv } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { usePetExpression } from "../hooks/usePetExpression";
 
 const MainPage: React.FC = () => {
   // 页面核心：桌宠主视图与交互驱动的统一弹窗
   const [bubbleMessage, setBubbleMessage] = useState<string | null>(null);
   const lastOpenRef = useRef<boolean | null>(null); // 记录最近一次弹窗开关，防止重复触发
+  const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [dragHint, setDragHint] = useState(false);
   const dialogRef = useRef<DialogManagerHandle | null>(null);
 
@@ -24,6 +25,7 @@ const MainPage: React.FC = () => {
   const emitDialogState = (open: boolean) => {
     if (lastOpenRef.current === open) return;
     lastOpenRef.current = open;
+    setDialogOpen(open);
     if (open) setDragHint(false);
     if (!isTauriEnv()) return;
     emit("ui_dialog_state", { open });
@@ -145,6 +147,59 @@ const MainPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // 监听后端发起的用户输入请求
+    const unlistenPromise = listen<{ correlation_id: string; message: string; options?: string[] }>(
+      "request_user_input",
+      (event) => {
+        const { correlation_id, message, options } = event.payload;
+        console.log("[MainPage] received request_user_input", event.payload);
+        
+        emitDialogState(true);
+        dialogRef.current?.showUserInputRequest(
+          message,
+          options || ["确定", "取消"],
+          (response) => {
+            console.log("[MainPage] sending user_input_response", { correlation_id, response });
+            emit("user_input_response", {
+              correlation_id,
+              response
+            });
+          }
+        );
+      }
+    );
+
+    return () => {
+      if (unlistenPromise instanceof Promise) {
+        unlistenPromise
+          .then((unlisten) => {
+            if (typeof unlisten === 'function') {
+              try {
+                const result = unlisten();
+                // 某些 Tauri 版本 unlisten 可能返回 Promise
+                if ((result as any) instanceof Promise) {
+                  (result as any).catch(e => {
+                    // 忽略 Tauri v2 HMR 期间常见的销毁错误
+                    if (String(e).includes("unregisterListener")) return;
+                    console.warn('Async unlisten failed:', e);
+                  });
+                }
+              } catch (e) {
+                // 忽略同步错误
+                if (String(e).includes("unregisterListener")) return;
+                console.warn('Failed to unlisten:', e);
+              }
+            }
+          })
+          .catch((e) => {
+             // 忽略 Promise 解析错误
+             console.warn('Failed to resolve unlisten promise:', e);
+          });
+      }
+    };
+  }, []);
+
   
 
   return (
@@ -186,6 +241,7 @@ const MainPage: React.FC = () => {
                 modelPath="/AIPeople/jiqiren.model3.json"
                 // 关键帧：页面状态驱动的表情传递给模型组件
                 expressionName={expression}
+                suppressIdle={dialogOpen}
                 onDoubleClick={handleDoubleClick}
                 onDragStart={handleDragStart}
                 onFileDrop={handleFileDrop}

@@ -478,12 +478,22 @@ pub fn run() {
                     let typ = v.get("type").and_then(|x| x.as_str()).unwrap_or("-");
                     let url = v.get("url").and_then(|x| x.as_str()).unwrap_or("-");
                     let status = v.get("status").and_then(|x| x.as_i64()).unwrap_or(-1);
+                    let error = v.get("error").and_then(|x| x.as_str()).unwrap_or("");
                     println!(
-                        "[http-debug] ts={} phase={} type={} url={} status={}",
-                        ts, phase, typ, url, status
+                        "[http-debug] ts={} phase={} type={} url={} status={} error={}",
+                        ts, phase, typ, url, status, error
                     );
                     if let Some(h) = v.get("headers") {
                         println!("[http-debug] headers={}", h);
+                    }
+                    if let Some(d) = v.get("data") {
+                        // 如果 data 是对象或数组，将其格式化为字符串打印
+                        let data_str = if d.is_object() || d.is_array() {
+                            serde_json::to_string(d).unwrap_or_else(|_| d.to_string())
+                        } else {
+                            d.as_str().unwrap_or("").to_string()
+                        };
+                        println!("[http-debug] data={}", data_str);
                     }
                 } else {
                     println!("[http-debug] ts={} raw={}", ts, raw);
